@@ -1,3 +1,3 @@
 # analizador-empleos-tech-Chile
 
-# version 3.12.9 con entorno virtual : selenium 4.41.0 , pandas 3.0.1 , bs4 4.14.3
+#En este proyecto se ingresa a la pagina de lider para hacer un web scrapping e ingresarlo a una tabla de oracle con task scheduler para automatizarlo cada dia a cierta hora 

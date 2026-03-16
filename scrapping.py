@@ -1,5 +1,7 @@
 import pandas as pd 
 import time
+import logging
+import oracledb
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -7,7 +9,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup
-import oracledb
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("analisis_precios.log", encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
 
 USER = "system"
 PASSWORD = "system"
@@ -19,7 +29,7 @@ chrome_options = Options()
 
 driver = webdriver.Chrome(options=chrome_options)
 
-termino = "smartphones" # Puedes cambiarlo por lo que quieras buscar
+termino = "smartphones" # Se puede cambiar por lo que se quiera buscar
 
 def scrapear_lider(termino_busqueda):
     # Ir a la página principal primero para establecer la sesión
@@ -29,8 +39,8 @@ def scrapear_lider(termino_busqueda):
     try:
         wait = WebDriverWait(driver, 10)
         
-        # 1. Buscar la barra de búsqueda por su ID o Clase
-        # En Lider suele ser un input con un placeholder tipo "¿Qué buscas hoy?"
+
+        logging.info(f"Iniciando busqueda de:{termino_busqueda}")
         search_input = wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/div/div[1]/span/header/form/div/input")))
         
         # 2. Escribir el término y presionar Enter
@@ -38,23 +48,16 @@ def scrapear_lider(termino_busqueda):
         search_input.send_keys(termino_busqueda)
         search_input.submit() # Esto simula el "Enter"
         
-        print(f"Buscando: {termino_busqueda}...")
-
-        # 3. Esperar a que carguen los resultados
+        logging.info(f"Esperando que carguen lso resultados para: {termino_busqueda}")
         wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/div/div[1]/div/div/div[1]/main/div/div[2]/div/div/div[1]/div/section/div/div[2]")))
 
-        print("Resultados cargados, extrayendo datos...")
-
-        # 4. Un pequeño scroll para asegurar carga de lazy-loading
+        logging.info("Resultados cargados, realizando scroll...")
         driver.execute_script("window.scrollBy(0, 800);")
         time.sleep(3)
-         
-        print("Extrayendo productos...")
 
         # 5. Capturar los productos
         productos = driver.find_elements(By.CSS_SELECTOR, "div.flex.flex-wrap.w-100.flex-grow-0.flex-shrink-0.ph2.pr0-xl.pl4-xl.mt0-xl>div")
-
-        print(f"Productos encontrados: {len(productos)}")
+        logging.info(f"Se detectaron {len(productos)} elementos en el DOM.")
 
         for p in productos:
             try:
@@ -72,19 +75,18 @@ def scrapear_lider(termino_busqueda):
                 continue 
 
     except Exception as e:
-        print(f"Error durante la búsqueda: {e}")
+        logging.error(f"Error durante el scraping: {e}")
     
     return productos_lista
 
 # --- EJECUCIÓN ---
-
 datos = scrapear_lider(termino)
 
 df = pd.DataFrame(datos)
 df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0).astype(int)
 
 try:
-    # 3. Conectar a Oracle
+    logging.info("Conectando a Oracle 21c...")
     connection = oracledb.connect(user=USER, password=PASSWORD, dsn=DSN)
     cursor = connection.cursor()
 
@@ -96,19 +98,20 @@ try:
     sql = "INSERT INTO Smartphone_Lider (NOMBRE, PRECIO, MARCA) VALUES (:1, :2, :3)"
     
     cursor.executemany(sql, registros)
-    
-    # 6. Confirmar cambios
     connection.commit()
-    print(f"✅ ¡Éxito! Se han subido {len(registros)} registros a la tabla Smartphone_Lider.")
+
+    logging.info(f"✅ Éxito: Se insertaron {len(registros)} registros en Smartphone_Lider.")
 
 except Exception as e:
-    print(f"❌ Error al subir a Oracle: {e}")
+    logging.error(f"❌ Fallo en el proceso: {e}")
 
 finally:
     if 'cursor' in locals():
         cursor.close()
     if 'connection' in locals():
         connection.close()
+    driver.quit()
+    logging.info("Proceso finalizado y recursos liberados.")
 
 # 2. Guardar con Pandas
 #if datos:
@@ -118,5 +121,3 @@ finally:
 #   print("\n¡Archivo guardado exitosamente!")
 #else:
 #    print("No se encontraron productos.")
-
-driver.quit()
