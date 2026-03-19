@@ -32,7 +32,7 @@ def realizar_scraping(driver, termino_busqueda):
         
         for p in productos:
             try:
-                nombre = p.find_element(By.CSS_SELECTOR, "span.product-card_name").text
+                nombre = p.find_element(By.CSS_SELECTOR, "div.flex.flex-wrap.w-100.flex-grow-0.flex-shrink-0.ph2.pr0-xl.pl4-xl.mt0-xl>div>div>div>div>div>div>span").text
                 marca = p.find_element(By.CSS_SELECTOR, "div.mb1.mt2.b.f6.black.mr1.lh-copy").text
                 precio = p.find_element(By.CSS_SELECTOR, "div.mr1.mr2-xl.b.black.lh-copy.f5.f4-l").text
                 
